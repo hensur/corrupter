@@ -140,7 +140,7 @@ func main() {
 	}
 
 	isPNG := false
-	_, err := ppm.DecodeConfig(reader)
+	_, err = ppm.DecodeConfig(reader)
 	var m image.Image
 	if err != nil {
 		// image should be png
