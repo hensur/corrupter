@@ -1,16 +1,21 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"image"
+	"image/color"
 	"image/png"
 	"log"
 	"math/rand"
 	"os"
+	"strings"
 	"time"
 	"github.com/lmittmann/ppm"
 )
+
+var errInvalidFormat = errors.New("invalid format")
 
 var seededRand = rand.New(rand.NewSource(1))
 
@@ -18,6 +23,36 @@ func check(e error) {
 	if e != nil {
 		log.Fatal(e)
 	}
+}
+
+func parseHexColor(s string) (c *color.RGBA, err error) {
+	if s[0] != '#' {
+		return c, errInvalidFormat
+	}
+	c = &color.RGBA{}
+
+	s = strings.ToLower(s)
+
+	hexToByte := func(b byte) byte {
+		switch {
+		case b >= '0' && b <= '9':
+			return b - '0'
+		case b >= 'a' && b <= 'f':
+			return b - 'a' + 10
+		}
+		err = errInvalidFormat
+		return 0
+	}
+
+	switch len(s) {
+	case 7:
+		c.R = hexToByte(s[1])<<4 + hexToByte(s[2])
+		c.G = hexToByte(s[3])<<4 + hexToByte(s[4])
+		c.B = hexToByte(s[5])<<4 + hexToByte(s[6])
+	default:
+		err = errInvalidFormat
+	}
+	return
 }
 
 // force x to stay in [0, b) range. x is assumed to be in [-b,2*b) range
@@ -70,6 +105,7 @@ func main() {
 	stdAbberPtr := flag.Float64("stdabber", 10, "std. dev. of chromatic abberation offset (lower values induce longer trails)")
 
 	seedPtr := flag.Int64("seed", -1, "random seed. set to -1 if you want to generate it from time. the old version has used seed=1")
+	multiplyPtr := flag.String("multiplycolor", "", "color to multiply result with to tint colors")
 
 	flag.Parse()
 
@@ -77,6 +113,13 @@ func main() {
 		seededRand = rand.New(rand.NewSource(time.Now().UTC().UnixNano()))
 	} else if *seedPtr != 1 {
 		seededRand = rand.New(rand.NewSource(*seedPtr))
+	}
+
+	var mColor *color.RGBA
+	var err error
+	if multiplyPtr != nil && *multiplyPtr != "" {
+		mColor, err = parseHexColor(*multiplyPtr)
+		check(err)
 	}
 
 	// flag.Args() contain all non-option arguments, i.e., our input and output files
@@ -189,7 +232,9 @@ func main() {
 			g := new_img.Pix[g_idx+1]
 			b := new_img.Pix[b_idx+2]
 
-			r, g, b = multiply(r, 206), multiply(g, 4), multiply(b, 166)
+			if mColor != nil {
+				r, g, b = multiply(r, mColor.R), multiply(g, mColor.G), multiply(b, mColor.B)
+			}
 			r, g, b = brighten(r, ADD), brighten(g, ADD), brighten(b, ADD)
 
 			// copy the corresponding pixel (4 bytes) to the new image
@@ -216,7 +261,6 @@ func main() {
 			a := new_img1.Pix[ra_idx+3]
 			g := new_img1.Pix[g_idx+1]
 			b := new_img1.Pix[b_idx+2]
-
 
 			// copy the corresponding pixel (4 bytes) to the SAME image. this gets us nice colorful trails
 			dst_idx := new_img1.Stride*y + 4*x
