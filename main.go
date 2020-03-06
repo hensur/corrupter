@@ -9,6 +9,7 @@ import (
 	"math/rand"
 	"os"
 	"time"
+	"github.com/lmittmann/ppm"
 )
 
 var seededRand = rand.New(rand.NewSource(1))
@@ -94,9 +95,22 @@ func main() {
 		flag.Usage()
 		os.Exit(2)
 	}
-	m, err := png.Decode(reader)
+
+	isPNG := false
+	_, err := ppm.DecodeConfig(reader)
+	var m image.Image
+	if err != nil {
+		// image should be png
+		m, err = png.Decode(reader)
+		isPNG = true
+	} else {
+		_, err = reader.Seek(0, 0)
+		check(err)
+		m, err = ppm.Decode(reader)
+	}
 	check(err)
-	reader.Close()
+	err = reader.Close()
+	check(err)
 
 	// trying to obtain raw pointers to color data, since .At(), .Set() are very slow
 	m_raw_stride, m_raw_pix := 0, []uint8(nil)
@@ -117,7 +131,7 @@ func main() {
 	b := m.Bounds()
 
 	// first stage is dissolve+block corruption
-	new_img := image.NewNRGBA(b)
+	new_img := image.NewRGBA(b)
 	line_off := 0
 	stride := 0.
 	yset := 0
@@ -150,7 +164,7 @@ func main() {
 	}
 
 	// second stage is adding per-channel scan inconsistency and brightening
-	new_img1 := image.NewNRGBA(b)
+	new_img1 := image.NewRGBA(b)
 
 	lr, lg, lb := *lrPtr, *lgPtr, *lbPtr
 	LAG := *lagPtr
@@ -219,7 +233,13 @@ func main() {
 		writer, err = os.Create(flag.Args()[1])
 		check(err)
 	}
-	e := png.Encoder{CompressionLevel: png.NoCompression}
-	e.Encode(writer, new_img1)
-	writer.Close()
+	if isPNG {
+		e := png.Encoder{CompressionLevel: png.NoCompression}
+		err = e.Encode(writer, new_img1)
+	} else {
+		err = ppm.Encode(writer, new_img1)
+	}
+	check(err)
+	err = writer.Close()
+	check(err)
 }
