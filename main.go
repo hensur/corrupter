@@ -42,6 +42,10 @@ func brighten(r uint8, add uint8) uint8 {
 	return uint8(r32 - r32*add32/255 + add32)
 }
 
+func multiply(c1 uint8, c2 uint8) uint8 {
+	return uint8(((float64(c1) / 255) * (float64(c2) / 255)) * 255)
+}
+
 func main() {
 	// command line parsing
 	flag.Usage = func() {
@@ -151,6 +155,7 @@ func main() {
 	lr, lg, lb := *lrPtr, *lgPtr, *lbPtr
 	LAG := *lagPtr
 	ADD := uint8(*addPtr)
+	_ = ADD
 	STD_OFFSET := *stdOffsetPtr
 	for y := 0; y < b.Max.Y; y++ {
 		for x := 0; x < b.Max.X; x++ {
@@ -170,6 +175,7 @@ func main() {
 			g := new_img.Pix[g_idx+1]
 			b := new_img.Pix[b_idx+2]
 
+			r, g, b = multiply(r, 206), multiply(g, 4), multiply(b, 166)
 			r, g, b = brighten(r, ADD), brighten(g, ADD), brighten(b, ADD)
 
 			// copy the corresponding pixel (4 bytes) to the new image
@@ -196,6 +202,7 @@ func main() {
 			a := new_img1.Pix[ra_idx+3]
 			g := new_img1.Pix[g_idx+1]
 			b := new_img1.Pix[b_idx+2]
+
 
 			// copy the corresponding pixel (4 bytes) to the SAME image. this gets us nice colorful trails
 			dst_idx := new_img1.Stride*y + 4*x
